@@ -36,7 +36,6 @@ class App extends React.Component {
       receivedString: "",
       receivedHexview: "",
       receivedBytes: [],
-      alert: { severity: '', message: '' },
       alerts: [] //{severity: 'error', message: 'hoi'}, {severity: 'info', message: 'hoi'}
     }
 
@@ -56,15 +55,7 @@ class App extends React.Component {
     this.writeSerial = this.writeSerial.bind(this);
   }
 
-  async componentDidMount() {
-    if ("serial" in navigator) {
-      //const p = await navigator.serial.getPorts();
-      //console.log('ports', p);
-    }
-  }
-
   showAlert(severity, message) {
-    //this.setState({alert: {severity: severity, message: message}});
     this.setState({ alerts: [...this.state.alerts, { severity: severity, message: message }] });
     setTimeout(() => {
       if (this.state.alerts.length > 0) {
@@ -83,9 +74,6 @@ class App extends React.Component {
         parity: this.state.selectedParity,
         stopBits: this.state.selectedStopBits
       });
-      port.onconnect = event => {
-        this.showAlert('info', 'Serial port is connected to the computer.');
-      }
       port.ondisconnect = event => {
         this.showAlert('info', 'Serial port is disconnected from the computer.');
         this.setState({ serialPort: null });
@@ -128,7 +116,6 @@ class App extends React.Component {
           break;
         }
         if (value) {
-          console.log(value);
           value.forEach(b => {
             const nStr = (b === 0) ? '--' : b.toString(16).padStart(2, '0');
             const sStr = (b < 32 || b > 126) ? '.' : String.fromCharCode(b);
@@ -180,15 +167,13 @@ class App extends React.Component {
   async writeSerial(data) {
     let s = data.replace('\\n', '\n').replace('\\r', '\r').replace('\\t', '\t').replace('\\f', '\f').replace('\\b', '\b');
 
-    // Hallo \x02allem\x07aal
     let p = 0;
     while (true) {
       p = s.indexOf('\\x', p);
       if (p !== -1) {  // && s.substr(p+1,1) === 'x'
-        let sub = s.substr(p + 2, 2);
+        const sub = s.substr(p + 2, 2);
         if (/[0-9A-Fa-f]{2}/g.test(sub)) {
           const c = String.fromCharCode(parseInt(sub, 16));
-          console.log(p, sub, c);
           s = s.replace('\\x' + sub, c);
         }
       }
@@ -199,19 +184,6 @@ class App extends React.Component {
     }
 
     const dataArrayBuffer = this.encoder.encode(s);
-    // for (let i=0; i< dataArrayBuffer.length - 3; i++) {
-    //   // \x00..FF
-    //   console.log(i, dataArrayBuffer[i], dataArrayBuffer[i+1], dataArrayBuffer[i+2], dataArrayBuffer[i+3]);
-    //   if (dataArrayBuffer[i]===92 && dataArrayBuffer[i+1]===120) {  
-    //     const hb = this.getHexValue(dataArrayBuffer[i+2]);
-    //     const lb = this.getHexValue(dataArrayBuffer[i+3]);
-    //     if (hb !== -1 && lb !== -1) {
-    //       dataArrayBuffer[i] = (hb << 4) + lb;
-    //       dataArrayBuffer.splice(i+1, 3);
-    //     }
-    //   }
-    // }
-
     return await this.serialWriter.write(dataArrayBuffer);
   }
 
@@ -228,7 +200,6 @@ class App extends React.Component {
 
             {("serial" in navigator) ?
               <>
-                {this.state.alert.severity !== '' && <Alert severity={this.state.alert.severity}>{this.state.alert.message}</Alert>}
                 {this.state.alerts.map(({ severity, message }, index) => (
                   <Alert key={index} severity={severity}>{message}</Alert>
                 )
