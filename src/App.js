@@ -130,7 +130,7 @@ class App extends React.Component {
         if (value) {
           console.log(value);
           value.forEach(b => {
-            const nStr = b.toString(16).padStart(2, '0');
+            const nStr = (b === 0) ? '--' : b.toString(16).padStart(2, '0');
             const sStr = (b < 32 || b > 126) ? '.' : String.fromCharCode(b);
             if (this.hexLineIndex === HEX_CHARACTERS_PER_LINE - 1) {
               this.hexString += this.hexLines.toString(10).padStart(4, '0') + '  ' + this.hexNumbersLine + ' ' + nStr + '     ' + this.hexStringLine + sStr + '\r\n';
@@ -149,7 +149,7 @@ class App extends React.Component {
           this.setState({
             receivedString: this.state.receivedString.concat(this.decoder.decode(value)),
             receivedBytes: [...this.state.receivedBytes, ...value],
-            receivedHexview: this.hexString + this.hexLines.toString(10).padStart(4, '0') + '  ' + this.hexNumbersLine + '   '.repeat(HEX_CHARACTERS_PER_LINE-this.hexLineIndex) + '     ' + this.hexStringLine
+            receivedHexview: this.hexString + this.hexLines.toString(10).padStart(4, '0') + '  ' + this.hexNumbersLine + '   '.repeat(HEX_CHARACTERS_PER_LINE - this.hexLineIndex) + '     ' + this.hexStringLine
           });
         }
       }
@@ -164,17 +164,17 @@ class App extends React.Component {
   }
 
   getHexValue(c) {
-    if (c >= 48 && c <=57) {
-      return c-48;
+    if (c >= 48 && c <= 57) {
+      return c - 48;
     }
-    else if (c >= 65 && c <=70) {
-      return c-55;
-    }  
-    else if (c >= 97 && c <=102) {
-      return c-87;
-    }  
+    else if (c >= 65 && c <= 70) {
+      return c - 55;
+    }
+    else if (c >= 97 && c <= 102) {
+      return c - 87;
+    }
     else
-    return -1
+      return -1
   }
 
   async writeSerial(data) {
@@ -183,17 +183,17 @@ class App extends React.Component {
     // Hallo \x02allem\x07aal
     let p = 0;
     while (true) {
-      p = s.indexOf('\\', p);
-      if (p !== -1) {
+      p = s.indexOf('\\x', p);
+      if (p !== -1) {  // && s.substr(p+1,1) === 'x'
         let sub = s.substr(p + 2, 2);
-        if (s.substr(p+1,1) === 'x' && /[0-9A-Fa-f]{2}/g.test(sub)) {
+        if (/[0-9A-Fa-f]{2}/g.test(sub)) {
           const c = String.fromCharCode(parseInt(sub, 16));
           console.log(p, sub, c);
-          s = s.replace('\\x'+sub, c);
+          s = s.replace('\\x' + sub, c);
         }
-        else {
-          break;
-        }
+      }
+      else {
+        break;
       }
       p++;
     }
@@ -329,7 +329,7 @@ class App extends React.Component {
                   <CardContent>
                     <Stack direction="row" spacing={2}>
 
-                      <TextField 
+                      <TextField
                         disabled={this.state.serialPort == null} variant='standard' label={'Send to port'} size='small' sx={{ width: '80%' }}
                         value={this.state.sendString}
                         helperText='Use of escape characters \r \n \t \b \f is allowed and hex escape \x00 .. \xFF'
@@ -346,11 +346,11 @@ class App extends React.Component {
                         } label="add CRLF">
                         </FormControlLabel>
 
-                        <Button disabled={this.state.sendString === ''} variant='contained' 
+                        <Button disabled={this.state.sendString === ''} variant='contained'
                           onClick={() => {
                             const crlf = this.state.addCrLf ? '\r\n' : '';
                             this.writeSerial(this.state.sendString + crlf);
-                            this.setState({sendString: ''});
+                            this.setState({ sendString: '' });
                           }}
                         >Send</Button>
 
@@ -364,7 +364,7 @@ class App extends React.Component {
                     <Stack spacing={2}>
                       <Stack direction="row" spacing={2} alignItems='center'>
 
-                        <FormControlLabel disabled={!this.state.serialPort} control={<div style={{width: '1.5%'}}/>}
+                        <FormControlLabel disabled={!this.state.serialPort} control={<div style={{ width: '1.5%' }} />}
                           label="Text received" sx={{ width: '65.3%' }} />
 
                         <FormControlLabel
@@ -378,12 +378,12 @@ class App extends React.Component {
 
                         <Button disabled={!this.state.serialPort} variant='contained' sx={{ width: '12.3%' }}
                           onClick={() => {
-                            this.setState({receivedString: "", receivedHexview: "", receivedBytes: []});
+                            this.setState({ receivedString: "", receivedHexview: "", receivedBytes: [] });
                             this.hexLineIndex = 0;
-                            this.hexLines = 0; 
-                            this.hexString = ""; 
-                            this.hexStringLine = "";  
-                            this.hexNumbersLine = ""; 
+                            this.hexLines = 0;
+                            this.hexString = "";
+                            this.hexStringLine = "";
+                            this.hexNumbersLine = "";
                           }}
                         >Clear</Button>
 
