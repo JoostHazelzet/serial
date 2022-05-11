@@ -15,7 +15,6 @@ const darkTheme = createTheme({
 });
 
 const BAUD_RATES = [4800, 9600, 14400, 19200, 38400, 57600, 115200, 128000, 230400, 256000, 460800, 512000, 576000, 921600]
-const HEX_CHARACTERS_PER_LINE = 10;
 
 class App extends React.Component {
 
@@ -30,9 +29,10 @@ class App extends React.Component {
       selectedParity: "none",
       selectedStopBits: 1,
       SerialPort: null,
-      sendString: "",
+      sendString: "\\x46\\x69\\x6E\\x67\\x65\\x72\\x73\\x70\\x69\\x74\\x7A\\x65\\x6E\\x67\\x65\\x66\\xFC\\x68\\x6C\\x20\\x69\\x73\\x20\\x61\\x20\\x47\\x65\\x72\\x6D\\x61\\x6E\\x20\\x74\\x65\\x72\\x6D\\x2E\\n\\x49\\x74\\u2019\\x73\\x20\\x70\\x72\\x6F\\x6E\\x6F\\x75\\x6E\\x63\\x65\\x64\\x20\\x61\\x73\\x20\\x66\\x6F\\x6C\\x6C\\x6F\\x77\\x73\\x3A\\x20\\x5B\\u02C8\\x66\\u026A\\u014B\\u0250\\u02CC\\u0283\\x70\\u026A\\x74\\x73\\u0259\\x6E\\u0261\\u0259\\u02CC\\x66\\x79\\u02D0\\x6C\\x5D",
       addCrLf: true,
       hexViewerMode: false,
+      bytesPerLine: 16,
       receivedString: "",
       receivedHexview: "",
       receivedBytes: [],
@@ -116,28 +116,11 @@ class App extends React.Component {
           break;
         }
         if (value) {
-          value.forEach(b => {
-            const nStr = (b === 0) ? '--' : b.toString(16).padStart(2, '0');
-            const sStr = (b < 32 || b > 126) ? '.' : String.fromCharCode(b);
-            if (this.hexLineIndex === HEX_CHARACTERS_PER_LINE - 1) {
-              this.hexString += this.hexLines.toString(10).padStart(4, '0') + '  ' + this.hexNumbersLine + ' ' + nStr + '     ' + this.hexStringLine + sStr + '\r\n';
-              this.hexLineIndex = 0;
-              this.hexLines += HEX_CHARACTERS_PER_LINE;
-              this.hexNumbersLine = "";
-              this.hexStringLine = "";
-            }
-            else {
-              this.hexNumbersLine += ' ' + nStr;
-              this.hexStringLine += sStr;
-              this.hexLineIndex++;
-            }
-          });
-
           this.setState({
             receivedString: this.state.receivedString.concat(this.decoder.decode(value)),
             receivedBytes: [...this.state.receivedBytes, ...value],
-            receivedHexview: this.hexString + this.hexLines.toString(10).padStart(4, '0') + '  ' + this.hexNumbersLine + '   '.repeat(HEX_CHARACTERS_PER_LINE - this.hexLineIndex) + '     ' + this.hexStringLine
           });
+         this.processReceivedBytesToHexView(value, this.state.bytesPerLine);
         }
       }
       catch (e) {
@@ -150,41 +133,59 @@ class App extends React.Component {
     }
   }
 
-  getHexValue(c) {
-    if (c >= 48 && c <= 57) {
-      return c - 48;
+  processReceivedBytesToHexView(value, bytesPerLine) {
+    if (!value) {
+      this.resetHexView();
+      value = this.state.receivedBytes;
     }
-    else if (c >= 65 && c <= 70) {
-      return c - 55;
-    }
-    else if (c >= 97 && c <= 102) {
-      return c - 87;
-    }
-    else
-      return -1
+    
+    value.forEach(b => {
+      const nStr = (b === 0) ? '--' : b.toString(16).padStart(2, '0');
+      const sStr = (b < 32 || b > 126) ? '.' : String.fromCharCode(b);
+      if (this.hexLineIndex === bytesPerLine- 1) {
+        this.hexString += this.hexLines.toString(10).padStart(4, '0') + '  ' + this.hexNumbersLine + ' ' + nStr + '     ' + this.hexStringLine + sStr + '\r\n';
+        this.hexLineIndex = 0;
+        this.hexLines += bytesPerLine;
+        this.hexNumbersLine = "";
+        this.hexStringLine = "";
+      }
+      else {
+        this.hexNumbersLine += ' ' + nStr;
+        this.hexStringLine += sStr;
+        this.hexLineIndex++;
+      }
+    });
+
+    this.setState({
+      receivedHexview: this.hexString + this.hexLines.toString(10).padStart(4, '0') + '  ' + this.hexNumbersLine + '   '.repeat(bytesPerLine - this.hexLineIndex) + '     ' + this.hexStringLine
+    });
+  }
+
+  resetHexView() {
+    this.hexLineIndex = 0;
+    this.hexLines = 0;
+    this.hexString = "";
+    this.hexStringLine = "";
+    this.hexNumbersLine = "";
   }
 
   async writeSerial(data) {
-    let s = data.replace('\\n', '\n').replace('\\r', '\r').replace('\\t', '\t').replace('\\f', '\f').replace('\\b', '\b');
-
-    let p = 0;
-    while (true) {
-      p = s.indexOf('\\x', p);
-      if (p !== -1) {  // && s.substr(p+1,1) === 'x'
-        const sub = s.substr(p + 2, 2);
-        if (/[0-9A-Fa-f]{2}/g.test(sub)) {
-          const c = String.fromCharCode(parseInt(sub, 16));
-          s = s.replace('\\x' + sub, c);
-        }
-      }
-      else {
-        break;
-      }
-      p++;
-    }
+    // replace single escape characters
+    let s = data.replaceAll('\\n', '\n').replaceAll('\\r', '\r').replaceAll('\\t', '\t').replaceAll('\\f', '\f').replaceAll('\\b', '\b');
+    // replace hexadecimal escape characters
+    s = s.replaceAll(/\\x[a-fA-F0-9]{2}/g, (v) => {
+      return String.fromCharCode(parseInt(v.substr(2), 16));;
+    });
 
     const dataArrayBuffer = this.encoder.encode(s);
-    return await this.serialWriter.write(dataArrayBuffer);
+
+    this.setState({
+      receivedString: this.state.receivedString.concat(s),
+      receivedBytes: [...this.state.receivedBytes, ...dataArrayBuffer],
+    });
+
+    this.processReceivedBytesToHexView(dataArrayBuffer, this.state.bytesPerLine);
+    //return await this.serialWriter.write(dataArrayBuffer);
   }
 
   render() {
@@ -301,16 +302,18 @@ class App extends React.Component {
                     <Stack direction="row" spacing={2}>
 
                       <TextField
-                        disabled={this.state.serialPort == null} variant='standard' label={'Send to port'} size='small' sx={{ width: '80%' }}
+                        disabled={this.state.serialPort === null} variant='standard' label={'Send to port'} size='small' sx={{ width: '80%' }}
                         value={this.state.sendString}
-                        helperText='Use of escape characters \r \n \t \b \f is allowed and hex escape \x00 .. \xFF'
+                        helperText='Use of single escape characters (\r \n \t \b \f) and hexadecimal escape characters (\x00 .. \xFF) is allowed'
+                        multiline
+                        maxRows={3}
                         onChange={(event) => {
                           this.setState({ sendString: event.target.value });
                         }}></TextField>
 
                       <Stack>
 
-                        <FormControlLabel disabled={this.state.serialPort == null} control={
+                        <FormControlLabel disabled={this.state.serialPort === null} control={
                           <Switch
                             checked={this.state.addCrLf}
                             onChange={() => this.setState({ addCrLf: !this.state.addCrLf })} />
@@ -321,7 +324,7 @@ class App extends React.Component {
                           onClick={() => {
                             const crlf = this.state.addCrLf ? '\r\n' : '';
                             this.writeSerial(this.state.sendString + crlf);
-                            this.setState({ sendString: '' });
+                            //this.setState({ sendString: '' });
                           }}
                         >Send</Button>
 
@@ -335,11 +338,11 @@ class App extends React.Component {
                     <Stack spacing={2}>
                       <Stack direction="row" spacing={2} alignItems='center'>
 
-                        <FormControlLabel disabled={!this.state.serialPort} control={<div style={{ width: '1.5%' }} />}
+                        <FormControlLabel disabled={this.state.serialPort} control={<div style={{ width: '1.5%' }} />}
                           label="Text received" sx={{ width: '65.3%' }} />
 
                         <FormControlLabel
-                          disabled={!this.state.serialPort}
+                          disabled={this.state.serialPort}
                           control={<Switch
                             checked={this.state.hexViewerMode}
                             onChange={() => this.setState({ hexViewerMode: !this.state.hexViewerMode })} />
@@ -347,14 +350,25 @@ class App extends React.Component {
                           label="HEX viewer">
                         </FormControlLabel>
 
-                        <Button disabled={!this.state.serialPort} variant='contained' sx={{ width: '12.3%' }}
+                      <Typography variant="body1" component="div" align='right' sx={{ width: '8%' }}>
+                        Bytes per line
+                      </Typography>
+                      <Select disabled={this.state.serialPort != null} value={this.state.bytesPerLine} sx={{ width: '5%' }} size='small'
+                        onChange={(event) => {
+                          this.setState({ bytesPerLine: event.target.value });
+                          this.processReceivedBytesToHexView(null, event.target.value);
+                        }}>
+                        {[8, 10, 16].map((bytesPerLine, index) => (
+                          <MenuItem key={index} value={bytesPerLine}>
+                            {bytesPerLine}
+                          </MenuItem>
+                        ))}
+                      </Select>
+
+                        <Button disabled={this.state.serialPort != null} variant='contained' sx={{ width: '12.3%' }}
                           onClick={() => {
                             this.setState({ receivedString: "", receivedHexview: "", receivedBytes: [] });
-                            this.hexLineIndex = 0;
-                            this.hexLines = 0;
-                            this.hexString = "";
-                            this.hexStringLine = "";
-                            this.hexNumbersLine = "";
+                            this.resetHexView();
                           }}
                         >Clear</Button>
 
