@@ -4,7 +4,7 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 
 import {
-  Container, Card, CardContent, Typography, Stack,
+  Container, Card, CardContent, Typography, Stack, Grid,
   Link, Select, MenuItem, Alert, Button, TextField, Switch, FormControlLabel
 } from '@mui/material';
 
@@ -29,7 +29,7 @@ class App extends React.Component {
       selectedParity: "none",
       selectedStopBits: 1,
       SerialPort: null,
-      sendString: "\\x46\\x69\\x6E\\x67\\x65\\x72\\x73\\x70\\x69\\x74\\x7A\\x65\\x6E\\x67\\x65\\x66\\xFC\\x68\\x6C\\x20\\x69\\x73\\x20\\x61\\x20\\x47\\x65\\x72\\x6D\\x61\\x6E\\x20\\x74\\x65\\x72\\x6D\\x2E\\n\\x49\\x74\\u2019\\x73\\x20\\x70\\x72\\x6F\\x6E\\x6F\\x75\\x6E\\x63\\x65\\x64\\x20\\x61\\x73\\x20\\x66\\x6F\\x6C\\x6C\\x6F\\x77\\x73\\x3A\\x20\\x5B\\u02C8\\x66\\u026A\\u014B\\u0250\\u02CC\\u0283\\x70\\u026A\\x74\\x73\\u0259\\x6E\\u0261\\u0259\\u02CC\\x66\\x79\\u02D0\\x6C\\x5D",
+      sendString: "",
       addCrLf: true,
       hexViewerMode: false,
       bytesPerLine: 16,
@@ -64,7 +64,7 @@ class App extends React.Component {
     }, 6000);
   }
 
-  async connectSerial(baudRate) {
+  async connectSerial() {
     try {
       const port = await navigator.serial.requestPort();
       await port.open({
@@ -120,7 +120,7 @@ class App extends React.Component {
             receivedString: this.state.receivedString.concat(this.decoder.decode(value)),
             receivedBytes: [...this.state.receivedBytes, ...value],
           });
-         this.processReceivedBytesToHexView(value, this.state.bytesPerLine);
+          this.processReceivedBytesToHexView(value, this.state.bytesPerLine);
         }
       }
       catch (e) {
@@ -138,12 +138,13 @@ class App extends React.Component {
       this.resetHexView();
       value = this.state.receivedBytes;
     }
-    
+
     value.forEach(b => {
       const nStr = (b === 0) ? '--' : b.toString(16).padStart(2, '0');
       const sStr = (b < 32 || b > 126) ? '.' : String.fromCharCode(b);
-      if (this.hexLineIndex === bytesPerLine- 1) {
-        this.hexString += this.hexLines.toString(10).padStart(4, '0') + '  ' + this.hexNumbersLine + ' ' + nStr + '     ' + this.hexStringLine + sStr + '\r\n';
+      if (this.hexLineIndex === bytesPerLine - 1) {
+        this.hexString += this.hexLines.toString(10).padStart(6, '0') + '    ' +
+          this.hexNumbersLine + ' ' + nStr + '     ' + this.hexStringLine + sStr + '\r\n';
         this.hexLineIndex = 0;
         this.hexLines += bytesPerLine;
         this.hexNumbersLine = "";
@@ -157,7 +158,8 @@ class App extends React.Component {
     });
 
     this.setState({
-      receivedHexview: this.hexString + this.hexLines.toString(10).padStart(4, '0') + '  ' + this.hexNumbersLine + '   '.repeat(bytesPerLine - this.hexLineIndex) + '     ' + this.hexStringLine
+      receivedHexview: this.hexString + this.hexLines.toString(10).padStart(6, '0') + '    ' +
+        this.hexNumbersLine + '   '.repeat(bytesPerLine - this.hexLineIndex) + '     ' + this.hexStringLine
     });
   }
 
@@ -184,8 +186,8 @@ class App extends React.Component {
       receivedBytes: [...this.state.receivedBytes, ...dataArrayBuffer],
     });
 
-    this.processReceivedBytesToHexView(dataArrayBuffer, this.state.bytesPerLine);
-    //return await this.serialWriter.write(dataArrayBuffer);
+    //this.processReceivedBytesToHexView(dataArrayBuffer, this.state.bytesPerLine); 
+    return await this.serialWriter.write(dataArrayBuffer);
   }
 
   render() {
@@ -299,80 +301,97 @@ class App extends React.Component {
 
                 <Card>
                   <CardContent>
-                    <Stack direction="row" spacing={2}>
+                    <Grid container spacing={2}>
 
-                      <TextField
-                        disabled={this.state.serialPort === null} variant='standard' label={'Send to port'} size='small' sx={{ width: '80%' }}
-                        value={this.state.sendString}
-                        helperText='Use of single escape characters (\r \n \t \b \f) and hexadecimal escape characters (\x00 .. \xFF) is allowed'
-                        multiline
-                        maxRows={3}
-                        onChange={(event) => {
-                          this.setState({ sendString: event.target.value });
-                        }}></TextField>
-
-                      <Stack>
-
-                        <FormControlLabel disabled={this.state.serialPort === null} control={
-                          <Switch
-                            checked={this.state.addCrLf}
-                            onChange={() => this.setState({ addCrLf: !this.state.addCrLf })} />
-                        } label="add CRLF">
-                        </FormControlLabel>
-
-                        <Button disabled={this.state.sendString === ''} variant='contained'
-                          onClick={() => {
-                            const crlf = this.state.addCrLf ? '\r\n' : '';
-                            this.writeSerial(this.state.sendString + crlf);
-                            //this.setState({ sendString: '' });
+                      <Grid item xs={10}>
+                        <TextField
+                          disabled={this.state.serialPort === null} variant='standard' label={'Send to port'} size='small' sx={{ width: '100%' }}
+                          value={this.state.sendString}
+                          helperText='Use of single escape characters (\r \n \t \b \f) and hexadecimal escape characters (\x00 .. \xFF) is allowed'
+                          multiline
+                          maxRows={5}
+                          onChange={(event) => {
+                            this.setState({ sendString: event.target.value });
                           }}
-                        >Send</Button>
+                        />
+                      </Grid>
 
-                      </Stack>
+                      <Grid item xs={2}>
+                        <Stack alignItems={'bottom'}>
 
-                    </Stack>
+                          <FormControlLabel disabled={this.state.serialPort == null} control={
+                            <Switch
+                              checked={this.state.addCrLf}
+                              onChange={() => this.setState({ addCrLf: !this.state.addCrLf })} />
+                          } label="add CRLF" >
+                          </FormControlLabel>
+
+                          <Button disabled={this.state.sendString === ''} variant='contained' sx={{ width: '80%' }}
+                            onClick={() => {
+                              const crlf = this.state.addCrLf ? '\r\n' : '';
+                              this.writeSerial(this.state.sendString + crlf);
+                              this.setState({ sendString: '' });
+                            }}
+                          >Send</Button>
+
+                        </Stack>
+                      </Grid>
+
+                    </Grid>
                   </CardContent>
                 </Card>
+
                 <Card>
                   <CardContent>
                     <Stack spacing={2}>
-                      <Stack direction="row" spacing={2} alignItems='center'>
 
-                        <FormControlLabel disabled={this.state.serialPort} control={<div style={{ width: '1.5%' }} />}
-                          label="Text received" sx={{ width: '65.3%' }} />
+                      <Grid container spacing={2} alignItems='center'>
 
-                        <FormControlLabel
-                          disabled={this.state.serialPort}
-                          control={<Switch
-                            checked={this.state.hexViewerMode}
-                            onChange={() => this.setState({ hexViewerMode: !this.state.hexViewerMode })} />
-                          }
-                          label="HEX viewer">
-                        </FormControlLabel>
+                        <Grid item xs={5}>
+                          Text received
+                        </Grid>
 
-                      <Typography variant="body1" component="div" align='right' sx={{ width: '8%' }}>
-                        Bytes per line
-                      </Typography>
-                      <Select disabled={this.state.serialPort != null} value={this.state.bytesPerLine} sx={{ width: '5%' }} size='small'
-                        onChange={(event) => {
-                          this.setState({ bytesPerLine: event.target.value });
-                          this.processReceivedBytesToHexView(null, event.target.value);
-                        }}>
-                        {[8, 10, 16].map((bytesPerLine, index) => (
-                          <MenuItem key={index} value={bytesPerLine}>
-                            {bytesPerLine}
-                          </MenuItem>
-                        ))}
-                      </Select>
+                        <Grid item xs={5}>
+                          <Stack direction={'row'} spacing={2} alignItems='center'>
 
-                        <Button disabled={this.state.serialPort != null} variant='contained' sx={{ width: '12.3%' }}
-                          onClick={() => {
-                            this.setState({ receivedString: "", receivedHexview: "", receivedBytes: [] });
-                            this.resetHexView();
-                          }}
-                        >Clear</Button>
+                            <FormControlLabel
+                              disabled={this.state.serialPort == null}
+                              control={<Switch
+                                checked={this.state.hexViewerMode}
+                                onChange={() => this.setState({ hexViewerMode: !this.state.hexViewerMode })} />
+                              }
+                              label="HEX viewer"
+                              style={{ width: '35%' }}
+                            />
 
-                      </Stack>
+                            <Typography variant="body1" component="div" align='right' sx={{ width: '25%' }}>
+                              Bytes per line
+                            </Typography>
+
+                            <Select disabled={this.state.serialPort == null} value={this.state.bytesPerLine} sx={{ width: '15%' }} size='small'
+                              onChange={(event) => {
+                                this.setState({ bytesPerLine: event.target.value });
+                                this.processReceivedBytesToHexView(null, event.target.value);
+                              }}>
+                              {[8, 10, 16].map((bytesPerLine, index) => (
+                                <MenuItem key={index} value={bytesPerLine}>
+                                  {bytesPerLine}
+                                </MenuItem>
+                              ))}
+                            </Select>
+
+                          </Stack>
+                        </Grid>
+
+                        <Grid item xs={2}>
+                          <Button disabled={this.state.serialPort == null} variant='contained' sx={{ width: '80%' }}
+                            onClick={() => {
+                              this.setState({ receivedString: "", receivedHexview: "", receivedBytes: [] });
+                              this.resetHexView();
+                            }}>Clear</Button>
+                        </Grid>
+
+                      </Grid>
 
 
                       <pre >
